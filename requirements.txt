@@ -1,0 +1,3 @@
+eesdr_tci               # TCI interface
+python-rtmidi           # MIDI backend
+mido                    # MIDI interface
