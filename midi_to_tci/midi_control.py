@@ -1,5 +1,6 @@
 from enum import IntEnum
 from functools import partial
+from bisect import bisect_right, bisect_left
 from eesdr_tci import tci
 from eesdr_tci.Listener import Listener
 from eesdr_tci.tci import TciCommandSendAction
@@ -57,6 +58,55 @@ class FILTERSIDE(IntEnum):
     MAIN  =  0
     RIGHT =  1
 
+class Band:
+    def __init__(self, name, min_freq, max_freq, seg1=None, seg2=None):
+        self.name = name
+        self.min_freq = min_freq * 1000
+        self.max_freq = max_freq * 1000
+        if seg1 is None:
+            self.seg1_freq = (self.min_freq + self.max_freq) / 2
+            self.seg2_freq = None
+        else:
+            self.seg1_freq = seg1 * 1000
+
+        if seg2 is None:
+            self.seg2_freq = None
+        else:
+            self.seg2_freq = seg2 * 1000
+
+    def in_band(self, freq):
+        return freq >= self.min_freq and freq <= self.max_freq
+
+    def points(self):
+        if self.seg2_freq == None:
+            return [self.seg1_freq]
+        else:
+            return [self.seg1_freq, self.seg2_freq]
+
+class BANDS:
+    INFO = [ Band("160m", 1800, 2000), 
+             Band("80m", 3500, 4000, 3525, 3800), 
+             Band("60m", 5330.5, 5407.5, 5358.5), 
+             Band("40m", 7000, 7300, 7025, 7175),
+             Band("30m", 10100, 10150),
+             Band("20m", 14000, 14350, 14025, 14225),
+             Band("17m", 18068, 18168, 18110),
+             Band("15m", 21000, 21450, 21025, 21275),
+             Band("12m", 24890, 24990, 24930),
+             Band("10m", 28000, 29700, 28300, 29000),
+             Band("6m", 50000, 54000, 50100, 52000),
+             Band("2m", 144000, 148000, 144100, 147000),
+           ]
+    NAMES = [band.name for band in INFO]
+    POINTS = [i for j in [band.points() for band in INFO] for i in j]
+
+    def FreqBand(freq):
+        chk = [band.in_band(freq) for band in INFO]
+        if not any(chk):
+            return None
+        else:
+            return INFO[chk.index(True)]
+
 params_dict = {}
 
 async def update_params(name, rx, subrx, params):
@@ -77,6 +127,26 @@ def get_param(name, rx = None, subrx = None):
     if not cmd.has_sub_rx:
         subrx = None
     return params_dict[rx][subrx][name]
+
+def do_band_scroll(val, rx, subrx):
+    rx_dds = get_param("DDS", rx, subrx)
+    subrx_if = get_param("IF", rx, subrx)
+    curr_freq = rx_dds + subrx_if
+    if val == MIDI.ENCDOWN:
+        idx = bisect_left(BANDS.POINTS, curr_freq) - 1
+    elif val == MIDI.ENCUP:
+        idx = bisect_right(BANDS.POINTS, curr_freq)
+    else:
+        return []
+
+    if idx >= len(BANDS.POINTS):
+        idx = 0
+    rx_dds = BANDS.POINTS[idx]
+    print(idx,rx_dds)
+    subrx_if = 0
+
+    return [ tci.COMMANDS["DDS"].prepare_string(TciCommandSendAction.WRITE, rx=rx, params=[int(rx_dds)]),
+             tci.COMMANDS["IF"].prepare_string(TciCommandSendAction.WRITE, rx=rx, sub_rx=subrx, params=[int(subrx_if)]) ]
 
 def do_freq_scroll(incr, val, rx, subrx):
     rx_dds = get_param("DDS", rx, subrx)
@@ -281,7 +351,7 @@ async def midi_rx(tci_listener, midi_port):
         knob_scroll_map = { CC.ENC_LARGE: [ partial(do_freq_scroll, 250),
                                             partial(do_filter_scroll, FILTERSIDE.MAIN),
                                             do_mod_scroll,
-                                            None,
+                                            do_band_scroll,
                                             partial(do_generic_scroll, "DRIVE", 2),
                                             partial(do_generic_scroll, "VOLUME", 2),
                                             partial(do_generic_scroll, "MON_VOLUME", 2),
