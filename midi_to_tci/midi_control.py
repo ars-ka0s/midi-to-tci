@@ -183,7 +183,7 @@ def do_filter_scroll(side, val, rx, subrx):
         if side == FILTERSIDE.LEFT or side == FILTERSIDE.MAIN:
             flt[0] = MODS.DEFAULT_LEFT[mod]
         if side == FILTERSIDE.RIGHT or side == FILTERSIDE.MAIN:
-            flt[0] = MODS.DEFAULT_RIGHT[mod]
+            flt[1] = MODS.DEFAULT_RIGHT[mod]
     elif val == MIDI.ENCDOWN:
         if side == FILTERSIDE.LEFT:
             flt[0] -= 25
