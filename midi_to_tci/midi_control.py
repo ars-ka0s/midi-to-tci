@@ -231,6 +231,8 @@ def do_enable_toggle(val, rx, subrx):
             return do_toggle("RX_ENABLE", MIDI.KEYDOWN, rx, subrx)
         elif subrx > 0:
             return do_toggle("RX_CHANNEL_ENABLE", MIDI.KEYDOWN, rx, subrx)
+        else:
+            return [ tci.COMMANDS["IF"].prepare_string(TciCommandSendAction.WRITE, rx=rx, sub_rx=subrx, params=[0]) ]
     else:
         return []
 
